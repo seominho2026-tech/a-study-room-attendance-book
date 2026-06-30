@@ -1,0 +1,6 @@
+{
+  "name": "여름방학 정독실 출석부",
+  "description": "담임 교사를 위한 여름방학 정독실 출석 관리 웹앱. 학생 등록 및 일자별/교시별 출석 체크가 가능하며 Google Sheets 연동을 위한 Apps Script 코드를 제공합니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
