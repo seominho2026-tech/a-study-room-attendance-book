@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Sun, CalendarCheck, UserPlus, History, Code, ArrowRight, Database, RefreshCw, AlertCircle, Check, ExternalLink, Info } from 'lucide-react';
+import { Sun, CalendarCheck, UserPlus, History, RefreshCw, AlertCircle, Check, Info } from 'lucide-react';
 import { Student, AttendanceRecord } from './types';
 import StudentManager from './components/StudentManager';
 import AttendanceChecker from './components/AttendanceChecker';
 import AttendanceHistory from './components/AttendanceHistory';
-import GASGuide from './components/GASGuide';
 
 // 초기 모의 학생 명단 (초보 교사가 앱 로드 시 바로 테스트할 수 있도록 제공)
 const MOCK_STUDENTS: Student[] = [
@@ -17,17 +16,14 @@ const MOCK_STUDENTS: Student[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'checker' | 'students' | 'history' | 'gas_guide'>('checker');
+  const [activeTab, setActiveTab] = useState<'checker' | 'students' | 'history'>('checker');
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
 
-  // 구글 시트 연동 정보 상태
-  const [webAppUrl, setWebAppUrl] = useState<string>(() => {
-    return localStorage.getItem('gas_webapp_url') || '';
-  });
-  const [isLiveMode, setIsLiveMode] = useState<boolean>(() => {
-    return localStorage.getItem('gas_live_mode') === 'true';
-  });
+  // 구글 시트 연동 정보 상태 - 사용자가 제공한 지정 주소로 고정
+  const FIXED_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbx46XP2e0ctj5XkJBc0TWZ5SF96vGZ5KIvr2uiC0YM4CL1vrfliD-JW4bgFbO2XJXspiQ/exec';
+  const [webAppUrl] = useState<string>(FIXED_WEB_APP_URL);
+  const [isLiveMode] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error' | ''; message: string }>({ type: '', message: '' });
 
@@ -403,6 +399,20 @@ export default function App() {
               </h1>
             </div>
           </div>
+          <div className="flex items-center gap-2" id="sync-status-header">
+            <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-black">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+              <span>실시간 구글 시트 연동 중</span>
+            </div>
+            <button
+              disabled={isSyncing}
+              onClick={() => handleFetchFromSheet(webAppUrl)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-1.5 rounded-lg transition-colors border-0 cursor-pointer disabled:opacity-50 flex items-center justify-center"
+              title="데이터 새로고침 및 동기화"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -414,7 +424,6 @@ export default function App() {
             { id: 'checker', label: '출석 체크', icon: <CalendarCheck className="w-3.5 h-3.5" /> },
             { id: 'students', label: '학생 관리', icon: <UserPlus className="w-3.5 h-3.5" /> },
             { id: 'history', label: '출석 통계 및 조회', icon: <History className="w-3.5 h-3.5" /> },
-            { id: 'gas_guide', label: '구글 시트 연동 안내', icon: <Code className="w-3.5 h-3.5" /> },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -434,150 +443,6 @@ export default function App() {
             );
           })}
         </div>
-
-        {/* 구글 시트 연동 통합 컨트롤러 (오직 구글 시트 연동 안내 탭에서만 보이도록 제한) */}
-        {activeTab === 'gas_guide' && (
-          <div className="bg-white rounded-3xl p-5 shadow-md border border-sky-100 space-y-4" id="google-sheet-connector">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <Database className={`w-5 h-5 ${isLiveMode ? 'text-emerald-500 animate-pulse' : 'text-slate-400'}`} />
-                <div>
-                  <h2 className="text-sm font-black text-slate-950 flex items-center gap-1.5">
-                    데이터 연동 설정
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                      isLiveMode 
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                        : 'bg-slate-100 text-slate-600 border border-slate-200'
-                    }`}>
-                      {isLiveMode ? '실시간 구글 시트 모드' : '로컬 시뮬레이터 모드'}
-                    </span>
-                  </h2>
-                  <p className="text-[11px] text-slate-500 font-bold">
-                    {isLiveMode 
-                      ? '실시간으로 구글 스프레드시트와 학생 명단 및 출석 기록을 양방향 동기화합니다.' 
-                      : '브라우저 쿠키(LocalStorage)에 임시 저장되며 인터넷이 끊겨도 작동합니다.'}
-                  </p>
-                </div>
-              </div>
-
-              {/* 연동 모드 토글 스위치 */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl self-start sm:self-center">
-                <button
-                  onClick={() => {
-                    setIsLiveMode(false);
-                    localStorage.setItem('gas_live_mode', 'false');
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                    !isLiveMode 
-                      ? 'bg-white text-slate-900 shadow-sm' 
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  로컬 테스트
-                </button>
-                <button
-                  onClick={() => {
-                    setIsLiveMode(true);
-                    localStorage.setItem('gas_live_mode', 'true');
-                    if (webAppUrl) {
-                      handleFetchFromSheet(webAppUrl);
-                    }
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                    isLiveMode 
-                      ? 'bg-blue-500 text-white shadow-sm' 
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  구글 시트 연동
-                </button>
-              </div>
-            </div>
-
-            {isLiveMode && (
-              <div className="space-y-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-black text-slate-700 flex items-center justify-between">
-                    <span>Apps Script 웹 앱 URL (Web App URL)</span>
-                    <a
-                      href="https://docs.google.com/spreadsheets/d/10gH7ygjXGF47Ee3A8f1QNb4pnfilDekK7EzCYOg1wJk/edit?usp=sharing"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[10px] text-blue-500 hover:underline flex items-center gap-0.5 font-bold"
-                    >
-                      내 구글 시트 열기 <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </label>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="url"
-                      value={webAppUrl}
-                      onChange={(e) => {
-                        const val = e.target.value.trim();
-                        setWebAppUrl(val);
-                        localStorage.setItem('gas_webapp_url', val);
-                      }}
-                      placeholder="https://script.google.com/macros/s/.../exec"
-                      className="flex-1 bg-slate-50 border-2 border-slate-200 focus:border-blue-400 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold outline-none transition-all placeholder:text-slate-400"
-                    />
-                    <button
-                      disabled={isSyncing || !webAppUrl}
-                      onClick={() => handleFetchFromSheet(webAppUrl)}
-                      className="bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white text-xs font-black px-5 py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer border-0"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                      <span>{isSyncing ? '동기화 중...' : '연동 및 동기화'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 동기화 피드백 상태 메시지 */}
-                {syncStatus.message && (
-                  <div className={`text-[11px] font-bold p-3 rounded-2xl flex items-center gap-2 ${
-                    syncStatus.type === 'success' 
-                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-900' 
-                      : 'bg-rose-50 border border-rose-200 text-rose-950'
-                  }`}>
-                    {syncStatus.type === 'success' ? (
-                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-                    )}
-                    <span>{syncStatus.message}</span>
-                  </div>
-                )}
-
-                {/* 입력 주소 에러 처리 가이드 */}
-                {webAppUrl && webAppUrl.includes('docs.google.com/spreadsheets') && (
-                  <div className="bg-amber-50 border border-amber-200 text-amber-950 rounded-2xl p-3.5 flex gap-2.5 items-start">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="text-[11px] font-bold space-y-1">
-                      <p className="font-black text-amber-950">잠깐! 입력하신 주소는 구글 스프레드시트 주소입니다.</p>
-                      <p className="leading-relaxed text-slate-600">
-                        여기에 입력하셔야 하는 주소는 시트 주소가 아닌, 시트에 연동할 수 있도록 만든 <b className="text-slate-900">[구글 Apps Script 웹 앱 URL]</b>입니다.
-                      </p>
-                      <button
-                        onClick={() => setActiveTab('gas_guide')}
-                        className="text-blue-600 hover:underline inline-flex items-center gap-0.5 mt-1 cursor-pointer border-0 bg-transparent p-0 font-bold"
-                      >
-                        Apps Script 웹 앱 URL 생성 및 배포 방법 배우기 <ArrowRight className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {!webAppUrl && (
-                  <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-3 text-[11px] text-slate-600 font-bold leading-relaxed flex items-center gap-2">
-                    <Info className="w-4 h-4 text-blue-500 shrink-0" />
-                    <span>
-                      아직 구글 웹 앱 URL이 없으신가요? <button onClick={() => setActiveTab('gas_guide')} className="text-blue-600 hover:underline cursor-pointer font-bold border-0 bg-transparent p-0"><b>[구글 시트 연동 안내]</b></button> 탭의 설명대로 3분 만에 무료로 생성할 수 있습니다.
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* 탭 본문 영역 */}
         <div className="pb-16" id="tab-content-container">
@@ -605,8 +470,6 @@ export default function App() {
               onRefreshRecords={handleRefreshRecords}
             />
           )}
-
-          {activeTab === 'gas_guide' && <GASGuide />}
         </div>
       </main>
     </div>
